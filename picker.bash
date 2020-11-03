@@ -49,8 +49,6 @@ function move_cursor {
 		elif [ $2 -eq "$FALSE" ] && [ $CURSOR_X -gt 0 ]; then
 			let CURSOR_X=$CURSOR_X-1
 		fi
-		echo "new CX = $CURSOR_X" >> /tmp/picker.log
-		max_cx >> /tmp/picker.log
 	else
 		if [ $2 -eq $TRUE ]; then
 			if [ $CURSOR_Y -eq 0 ]; then
@@ -90,7 +88,7 @@ function menu {
 
 # $1: fg / bg
 # $2: left start
-# $3: column number
+# $3: selected entry (-1 for none)
 function draw_16list {
 	names=( Black Red Green Yellow Blue Magenta Cyan Gray)
 	width=14
@@ -98,6 +96,8 @@ function draw_16list {
 	for (( i = 0; i < 8; i++ )); do
 		for pfx in ${pfxs[@]}; do
 			printf "\n%-$2s"
+
+			# set foreground color on background:
 			if [ $1 -eq $FALSE ]; then
 				if [ $i -eq 0 ]; then
 					printf "\e[97m"
@@ -105,13 +105,15 @@ function draw_16list {
 					printf "\e[30m"
 				fi
 			fi
-			if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
-				if [ $pfx -lt 5 ] && [ $CURSOR_Y -eq $(( $i * 2)) ]; then
-					echo -ne $CURSOR
-				elif [ $pfx -gt 5 ] && [ $CURSOR_Y -eq $(( $i * 2 + 1 )) ]; then
-					echo -ne $CURSOR
-				fi
+
+			# draw cursor:
+			if [ $pfx -lt 5 ] && [ $3 -eq $(( $i * 2)) ]; then
+				echo -ne $CURSOR
+			elif [ $pfx -gt 5 ] && [ $3 -eq $(( $i * 2 + 1 )) ]; then
+				echo -ne $CURSOR
 			fi
+
+			# draw text:
 			echo -ne "\e[$pfx${i}m"
 			if [ $pfx -eq 3 ]; then
 				if [ $i -eq 7 ]; then
@@ -133,13 +135,43 @@ function draw_16list {
 	done
 }
 
+# $1: left start
+# $2: selected
+function draw_modlist {
+	mods=( Bold Dim Underlined Blink Invert Hidden )
+	codes=( 1 2 4 5 7 8 )
+	for ((i = 0; i < 6; i++)); do
+		printf "\n"
+		if [ $2 -eq $i ]; then
+			printf $CURSOR
+		fi
+		printf " %2d: ${mods[$i]} \e[%dmText" ${codes[$i]} ${codes[$i]}
+		printf $RESET
+	done
+}
+
 function draw {
+	#if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
 	clear
 	draw_tabs
 	echo # separator
-	draw_16list $FALSE 25 1
+	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
+		draw_16list $FALSE 51 $CURSOR_Y
+	else
+		draw_16list $FALSE 51 -1
+	fi
 	printf "\e[16A"
-	draw_16list $TRUE 1 0
+	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
+		draw_16list $TRUE 25 $CURSOR_Y
+	else
+		draw_16list $TRUE 25 -1
+	fi
+	printf "\e[11A"
+	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
+		draw_modlist 1 $CURSOR_Y
+	else
+		draw_modlist 1 -1
+	fi
 }
 
 tput smcup
