@@ -183,10 +183,18 @@ function format_selected {
 	fi
 
 	if [ $2 -eq $TRUE ]; then
-		printf "${pfx}e[%d%dm" $(fgtoi $TRUE $SELECTED_FG)
+		if [ $SELECTED_TAB -eq 0 ]; then
+			printf "${pfx}e[%d%dm" $(fgtoi $TRUE $SELECTED_FG)
+		else
+			printf "${pfx}e[38;5;%dm" $SELECTED_FG
+		fi
 	fi
 	if [ $3 -eq $TRUE ]; then
-		printf "${pfx}e[%d%dm" $(fgtoi $FALSE $SELECTED_BG)
+		if [ $SELECTED_TAB -eq 0 ]; then
+			printf "${pfx}e[%d%dm" $(fgtoi $FALSE $SELECTED_BG)
+		else
+			printf "${pfx}e[48;5;%dm" $SELECTED_BG
+		fi
 	fi
 }
 
@@ -440,27 +448,44 @@ function draw {
 	draw_preview
 }
 
+function squash-code {
+	sed 's/m\\e\[/;/g' <<< $1 | tr -d '\n'
+}
+
 function close {
 	tput cvvis
 	tput rmcup
 	printf "You selected"
 	for i in "${!SELECTED_MODS[@]}"; do
 		if [ $i -gt 0 ]; then
-			printf ", %s" ${mods[$i]}
+			printf ", %s" ${mods[${SELECTED_MODS[$i]}]}
 		else
-			printf " %s" ${mods[$i]}
+			printf " %s" ${mods[${SELECTED_MODS[$i]}]}
 		fi
 	done
-	pfxi=$(fgtoi $TRUE $SELECTED_FG)
-	printf " text in %s" "$(itoname $pfxi)"
-	printf " (%d%d)" $pfxi
+	printf " text in "
+	if [ $SELECTED_TAB -eq 0 ]; then
+		pfxi=$(fgtoi $TRUE $SELECTED_FG)
+		printf "%s" "$(itoname $pfxi)"
+		printf " (%d%d)" $pfxi
+	else
+		printf "\e[38;5;%dm#%03d$RESET" $SELECTED_FG $SELECTED_FG
+	fi
 
-	pfxi=$(fgtoi $FALSE $SELECTED_BG)
-	printf " on %s" "$(itoname $pfxi)"
-	printf " (%d%d).\n" $pfxi
+	printf " on "
+
+	if [ $SELECTED_TAB -eq 0 ]; then
+		pfxi=$(fgtoi $FALSE $SELECTED_BG)
+		printf "%s" "$(itoname $pfxi)"
+		printf " (%d%d)" $pfxi
+	else
+		printf "\e[48;5;%dm#%03d$RESET" $SELECTED_BG $SELECTED_BG
+	fi
+
+	printf ".\n"
 
 	printf "The escape code for this combination is $SELECTED"
-	format_selected $TRUE $TRUE $TRUE $FALSE
+	squash-code $(format_selected $TRUE $TRUE $TRUE $FALSE)
 	printf "$RESET .\n"
 	exit
 }
