@@ -18,7 +18,7 @@ function draw_tabs {
 	local padding=2
 	local margin=$(( $WIDTH - 13 - 14 - $padding ))
 	margin=$(($margin / 2))
-	printf "%-${margin}s"
+	printf "\e[${margin}C"
 	for (( i = 0; i < ${#tab_titles[@]}; i++ )); do
 		if [ $SELECTED_TAB -eq $i ]; then
 			printf $SELECTED
@@ -27,7 +27,8 @@ function draw_tabs {
 			printf $CURSOR
 		fi
 		printf "${tab_titles[$i]}$RESET"
-		printf "%-${padding}s"
+		#printf "%-${padding}s"
+		printf "\e[${padding}C"
 	done
 }
 
@@ -58,7 +59,7 @@ function max {
 			max=$v
 		fi
 	done
-	printf $max
+	printf "%d" $max
 }
 
 function min {
@@ -68,7 +69,7 @@ function min {
 			min=$v
 		fi
 	done
-	printf $min
+	printf "%d" $min
 }
 
 function max_cy {
@@ -84,7 +85,7 @@ function max_cy {
 }
 
 # $1:  horizontal  / vertical
-# $2: left / right - up / down
+# $2: right / left - up / down
 function move_cursor {
 	if [ $1 -eq $TRUE ]; then
 		if [ $2 -eq $TRUE ]; then
@@ -92,6 +93,7 @@ function move_cursor {
 				[ $((($CURSOR_Y - 0) % 6)) -ne 3 ]; then # in the 256-color-list
 				let CURSOR_Y=$CURSOR_Y+1 # move one entry to the right
 			elif [ $CURSOR_X -lt $(max_cx) ]; then
+				DIRTY[$CURSOR_X]=$TRUE
 				let CURSOR_X=$CURSOR_X+1
 				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y-5
 				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
@@ -102,8 +104,14 @@ function move_cursor {
 		else 
 			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
 				[ $((($CURSOR_Y - 5) % 6)) -ne 5 ]; then # in the 256-color-list
-				let CURSOR_Y=$CURSOR_Y-1 # move one entry to the left
+				if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
+					let CURSOR_X=$CURSOR_X-1
+					select_entry
+				else
+					let CURSOR_Y=$CURSOR_Y-1 # move one entry to the left
+				fi
 			elif [ $CURSOR_X -gt 0 ]; then
+				DIRTY[$CURSOR_X]=$TRUE
 				let CURSOR_X=$CURSOR_X-1
 				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y+5
 				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
@@ -117,6 +125,7 @@ function move_cursor {
 		if [ $2 -eq $TRUE ]; then # up
 			if [ $CURSOR_Y -eq 0 ]; then
 				CURSOR_IN_HEAD=$TRUE # move to titlebar
+				DIRTY[$CURSOR_X]=$TRUE
 				CURSOR_X=$SELECTED_TAB
 			else
 				if [ $SELECTED_TAB -eq 0 ] || [ $CURSOR_X -eq 0 ]; then
@@ -154,6 +163,8 @@ SELECTED_BG=8
 function select_entry {
 	if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
 		SELECTED_TAB=$CURSOR_X
+		clear
+		DIRTY=($TRUE $TRUE $TRUE)
 	else
 		case $CURSOR_X in
 			0) switch_mod $CURSOR_Y;;
@@ -278,10 +289,10 @@ function draw_16list {
 	[ $1 -eq $TRUE ] && pfxs=( 3 9 ) || pfxs=( 4 10 )
 	for (( i = 0; i < 8; i++ )); do
 		for pfx in ${pfxs[@]}; do
-			printf "\n%-$2s"
+			printf "\n\e[$2C"
 			let LINES=$LINES+1
 
-			# set the other attributes
+			# invert fg on bright / dark bgs
 			if [ $1 -eq $FALSE ]; then
 				if [ $i -eq 0 ]; then
 					printf "\e[97m"
@@ -296,16 +307,17 @@ function draw_16list {
 			#fi
 
 			# draw cursor:
-			if [ $3 -eq $(itofg $pfx $i) ]; then
+			tfg=$(itofg $pfx $i)
+			if [ $3 -eq $tfg ]; then
 				printf $CURSOR
 			fi
 
 			if [ $1 -eq $TRUE ]; then
-				if [ $SELECTED_FG -eq $(itofg $pfx $i) ]; then
+				if [ $SELECTED_FG -eq $tfg ]; then
 					printf "$SELECTED"
 				fi
 			else
-				if [ $SELECTED_BG -eq $(itofg $pfx $i) ]; then
+				if [ $SELECTED_BG -eq $tfg ]; then
 					printf "$SELECTED"
 				fi
 			fi
@@ -316,6 +328,7 @@ function draw_16list {
 			printf "$RESET"
 		done
 	done
+	printf "\e[16A"
 }
 
 #1: fg / bg
@@ -330,7 +343,7 @@ function draw_256list {
 	fi
 
 	for ((i = -2; i <= 250; i = $i + 6)); do
-		printf " \n%-$2s"
+		printf " \n\e[$2C"
 		let LINES=$LINES+1
 		for ((j = 0; j < 6; j++)); do
 			col=$(($i + $j))
@@ -338,13 +351,19 @@ function draw_256list {
 				printf "    "
 				continue
 			fi
+			printf " "
 			if [ $3 -eq $col ]; then
-				printf " $CURSOR\e[%d;5;%dm%03d$RESET" $pfx $col $col
-			else
-				printf " \e[%d;5;%dm%03d$RESET" $pfx $col $col
+				printf "$CURSOR";
 			fi
+			if [ $1 -eq $TRUE ] && [ $col -eq $SELECTED_FG ]; then
+				printf "$SELECTED"
+			elif [ $1 -eq $FALSE ] && [ $col -eq $SELECTED_BG ]; then
+				printf "$SELECTED"
+			fi
+			printf "\e[%d;5;%dm%03d$RESET" $pfx $col $col
 		done
 	done
+	printf "\e[43A"
 }
 
 # $1: left start
@@ -372,6 +391,7 @@ function draw_modlist {
 		printf "%-$(($width - ${#mods[$i]}))s"
 		printf $RESET
 	done
+	printf "\e[12B"
 }
 
 function draw_preview {
@@ -405,52 +425,61 @@ function draw_preview {
 }
 
 WIDTH=77 # width of the selection screen
+DIRTY=($TRUE $TRUE $TRUE)
 function draw {
 	#if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
-	clear
-	#printf "\e[${LINES}A"
-	#printf "\e[1A\n"
-	draw_tabs
-	printf "\n" # separator
-	let LINES=$LINES+1
+	#clear
 	if [ $SELECTED_TAB -eq 0 ]; then
+		printf "\e[22A"
+		printf "\e[1A\n"
+		draw_tabs
+		printf "\n" # separator
+
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
-			draw_16list $FALSE 51 $CURSOR_Y
+			draw_16list $FALSE 51 $CURSOR_Y 
 		else
-			draw_16list $FALSE 51 -1
+			[ ${DIRTY[2]} -eq $TRUE ] && draw_16list $FALSE 51 -1
+			DIRTY[2]=$FALSE
 		fi
-		printf "\e[16A"
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
-			draw_16list $TRUE 25 $CURSOR_Y
+			draw_16list $TRUE 25 $CURSOR_Y 
 		else
-			draw_16list $TRUE 25 -1
+			[ ${DIRTY[1]} -eq $TRUE ] && draw_16list $TRUE 25 -1
+			DIRTY[1]=$FALSE
 		fi
-		printf "\e[16A"
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
-			draw_modlist 1 $CURSOR_Y
+			draw_modlist 1 $CURSOR_Y 
 		else
-			draw_modlist 1 -1
+			[ ${DIRTY[0]} -eq $TRUE ] && draw_modlist 1 -1
+			[ ${DIRTY[0]} -eq $FALSE ] && printf "\e[18B"
+			DIRTY[0]=$FALSE
 		fi
-		printf "\e[12B"
 	elif [ $SELECTED_TAB -eq 1 ]; then
+		printf "\e[49A"
+		printf "\e[1A\n"
+		draw_tabs
+		printf "\n" # separator
+
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
 			draw_256list $FALSE 51 $CURSOR_Y
 		else
-			draw_256list $FALSE 51 -1
+			[ ${DIRTY[2]} -eq $TRUE ] && draw_256list $FALSE 51 -1
+			DIRTY[2]=$FALSE
 		fi
-		printf " $RESET\e[43A"
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
-			draw_256list $TRUE 25 $CURSOR_Y
+			draw_256list $TRUE 25 $CURSOR_Y 
 		else
-			draw_256list $TRUE 25 -1
+			[ ${DIRTY[1]} -eq $TRUE ] && draw_256list $TRUE 25 -1
+			DIRTY[1]=$FALSE
 		fi
-		printf " $RESET\e[43A"
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
-			draw_modlist 1 $CURSOR_Y
+			draw_modlist 1 $CURSOR_Y && printf "\e[27B"
 		else
-			draw_modlist 1 -1
+			[ ${DIRTY[0]} -eq $TRUE ] && draw_modlist 1 -1 && printf "\e[27B"
+			[ ${DIRTY[0]} -eq $FALSE ] && printf "\e[45B"
+			DIRTY[0]=$FALSE
 		fi
-		printf "\e[39B"
+		#printf "\e[30B"
 	fi
 	draw_preview
 }
@@ -497,6 +526,7 @@ function close {
 	exit
 }
 
+echo "Launched at $(date)" >> /tmp/picker.log
 tput smcup
 tput civis
 clear
