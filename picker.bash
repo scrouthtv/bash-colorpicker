@@ -88,60 +88,67 @@ function max_cy {
 # $2: right / left - up / down
 function move_cursor {
 	if [ $1 -eq $TRUE ]; then
-		if [ $2 -eq $TRUE ]; then
-			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
-				[ $((($CURSOR_Y - 0) % 6)) -ne 3 ]; then # in the 256-color-list
-				let CURSOR_Y=$CURSOR_Y+1 # move one entry to the right
-			elif [ $CURSOR_X -lt $(max_cx) ]; then
+		if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -gt 0 ]; then
+			# if in a 256-color list, move an entry in there
+			if [ $2 -eq $TRUE ]; then
+				if [ $(($CURSOR_Y % 6)) -ne 3 ]; then
+					let CURSOR_Y=$CURSOR_Y+1
+				else # at the right margin of the list, switch to the next column
+					DIRTY[$CURSOR_X]=$TRUE
+					let CURSOR_X=$CURSOR_X+1
+					let CURSOR_Y=$CURSOR_Y-5 # go to the left margin of the next col
+					CURSOR_Y=$(max $CURSOR_Y 0)
+				fi
+			else # in a 256-color list, moving to the left
+				if [ $((($CURSOR_Y - 5) % 6)) -ne 5 ]; then
+					let CURSOR_Y=$CURSOR_Y-1
+				else # at the left margin of the list, switch to the prev column
+					DIRTY[$CURSOR_X]=$TRUE
+					let CURSOR_X=$CURSOR_X-1
+					[ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y+5
+					CURSOR_Y=$(min $CURSOR_Y $(max_cy))
+					# go to the right margin of the prev col
+				fi
+			fi
+		else # either in tab 0 or in the head, this is easier:
+			if [ $2 -eq $TRUE ] && [ $CURSOR_X -lt $(max_cx) ]; then
 				DIRTY[$CURSOR_X]=$TRUE
 				let CURSOR_X=$CURSOR_X+1
-				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y-5
-				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
-				CURSOR_Y=$(max $CURSOR_Y 0)
 				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
-				#echo "we're going to the right" >> /tmp/picker.log
-			fi
-		else 
-			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
-				[ $((($CURSOR_Y - 5) % 6)) -ne 5 ]; then # in the 256-color-list
-				if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
-					let CURSOR_X=$CURSOR_X-1
-					select_entry
-				else
-					let CURSOR_Y=$CURSOR_Y-1 # move one entry to the left
-				fi
-			elif [ $CURSOR_X -gt 0 ]; then
+			elif [ $2 -eq $FALSE ] && [ $CURSOR_X -gt 0 ]; then
 				DIRTY[$CURSOR_X]=$TRUE
 				let CURSOR_X=$CURSOR_X-1
-				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y+5
-				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
-				CURSOR_Y=$(max $CURSOR_Y 0)
 				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
-				#echo "we're going to the left" >> /tmp/picker.log
 			fi
 		fi
 	else
-		# up and down navigation:
-		if [ $2 -eq $TRUE ]; then # up
+		# up and down:
+		if [ $2 -eq $TRUE ]; then
 			if [ $CURSOR_Y -eq 0 ]; then
-				CURSOR_IN_HEAD=$TRUE # move to titlebar
+				CURSOR_IN_HEAD=$TRUE
+				DIRTY[$CURSOR_X]=$TRUE
+				CURSOR_X=$SELECTED_TAB
+			elif [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && [ $CURSOR_Y -lt 5 ]; then
+				# also switch to title:
+				CURSOR_IN_HEAD=$TRUE
 				DIRTY[$CURSOR_X]=$TRUE
 				CURSOR_X=$SELECTED_TAB
 			else
 				if [ $SELECTED_TAB -eq 0 ] || [ $CURSOR_X -eq 0 ]; then
 					let CURSOR_Y=$CURSOR_Y-1
-				elif [ $CURSOR_Y -gt 6 ]; then
+				else
+					# in a 256-color-list:
 					let CURSOR_Y=$CURSOR_Y-6
 				fi
 			fi
 		else
-			if [ $CURSOR_Y -eq 0 ] && [ $CURSOR_IN_HEAD -eq $TRUE ]; then
+			if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
 				CURSOR_IN_HEAD=$FALSE
 				CURSOR_X=0
-			elif [ $SELECTED_TAB -eq 0 ] || [ $CURSOR_X -eq 0 ] && [ $CURSOR_Y -lt $(max_cy) ]; then
-				let CURSOR_Y=$CURSOR_Y+1
-			elif [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_Y -lt $(($(max_cy) - 5)) ]; then
-				let CURSOR_Y=$CURSOR_Y+6
+			elif [ $SELECTED_TAB -eq 0 ] || [  $CURSOR_X -eq 0 ]; then
+				[ $CURSOR_Y -lt $(max_cy) ] && let CURSOR_Y=$CURSOR_Y+1
+			else
+				[ $CURSOR_Y -lt $(($(max_cy) - 5)) ] && let CURSOR_Y=$CURSOR_Y+6
 			fi
 		fi
 	fi
@@ -171,6 +178,8 @@ function select_entry {
 			1) SELECTED_FG=$CURSOR_Y ;;
 			2) SELECTED_BG=$CURSOR_Y ;;
 		esac
+		#clear
+		#DIRTY=($TRUE $TRUE $TRUE)
 	fi
 }
 
