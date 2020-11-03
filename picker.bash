@@ -21,12 +21,12 @@ function draw_tabs {
 	printf "%-${margin}s"
 	for (( i = 0; i < ${#tab_titles[@]}; i++ )); do
 		if [ $SELECTED_TAB -eq $i ]; then
-			echo -en $SELECTED
+			printf $SELECTED
 		fi
 		if [ $CURSOR_IN_HEAD -eq $TRUE ] && [ $CURSOR_X -eq $i ]; then
-			echo -en $CURSOR
+			printf $CURSOR
 		fi
-		echo -en ${tab_titles[$i]}$RESET
+		printf "${tab_titles[$i]}$RESET"
 		printf "%-${padding}s"
 	done
 }
@@ -86,7 +86,6 @@ function max_cy {
 # $1:  horizontal  / vertical
 # $2: left / right - up / down
 function move_cursor {
-	printf "old: %dx%d\n" $CURSOR_X $CURSOR_Y >> /tmp/picker.log
 	if [ $1 -eq $TRUE ]; then
 		if [ $2 -eq $TRUE ]; then
 			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
@@ -137,7 +136,6 @@ function move_cursor {
 			fi
 		fi
 	fi
-	printf " %dx%d\n" $CURSOR_X $CURSOR_Y >> /tmp/picker.log
 }
 
 function switch_mod {
@@ -281,6 +279,7 @@ function draw_16list {
 	for (( i = 0; i < 8; i++ )); do
 		for pfx in ${pfxs[@]}; do
 			printf "\n%-$2s"
+			let LINES=$LINES+1
 
 			# set the other attributes
 			if [ $1 -eq $FALSE ]; then
@@ -298,23 +297,23 @@ function draw_16list {
 
 			# draw cursor:
 			if [ $3 -eq $(itofg $pfx $i) ]; then
-				echo -ne $CURSOR
+				printf $CURSOR
 			fi
 
 			if [ $1 -eq $TRUE ]; then
 				if [ $SELECTED_FG -eq $(itofg $pfx $i) ]; then
-					echo -ne "$SELECTED"
+					printf "$SELECTED"
 				fi
 			else
 				if [ $SELECTED_BG -eq $(itofg $pfx $i) ]; then
-					echo -ne "$SELECTED"
+					printf "$SELECTED"
 				fi
 			fi
 
 			# draw text:
-			echo -ne "\e[$pfx${i}m"
+			printf "\e[$pfx${i}m"
 			printf " %3d: %-${width}s" $pfx$i "$(itoname $pfx $i)"
-			echo -ne $RESET
+			printf "$RESET"
 		done
 	done
 }
@@ -332,6 +331,7 @@ function draw_256list {
 
 	for ((i = -2; i <= 250; i = $i + 6)); do
 		printf " \n%-$2s"
+		let LINES=$LINES+1
 		for ((j = 0; j < 6; j++)); do
 			col=$(($i + $j))
 			if [ $col -lt 0 ]; then
@@ -355,6 +355,7 @@ function draw_modlist {
 	local width=12
 	for ((i = 0; i < 6; i++)); do
 		printf "\n"
+		let LINES=$LINES+1
 		if [ $2 -eq $i ]; then
 			printf $CURSOR
 		fi
@@ -378,12 +379,14 @@ function draw_preview {
 	local margin=$((($WIDTH - ${#PREVIEW} - $padding) / 2))
 
 	printf "\n%-${margin}s"
+	let LINES=$LINES+1
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m"
 	printf "%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 
 	printf "\n%-$(($margin))s"
+	let LINES=$LINES+1
 
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-${padding}s"
@@ -395,6 +398,7 @@ function draw_preview {
 	printf "$RESET"
 
 	printf "\n%-${margin}s"
+	let LINES=$LINES+1
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
@@ -404,8 +408,11 @@ WIDTH=77 # width of the selection screen
 function draw {
 	#if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
 	clear
+	#printf "\e[${LINES}A"
+	#printf "\e[1A\n"
 	draw_tabs
 	printf "\n" # separator
+	let LINES=$LINES+1
 	if [ $SELECTED_TAB -eq 0 ]; then
 		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
 			draw_16list $FALSE 51 $CURSOR_Y
@@ -492,9 +499,11 @@ function close {
 
 tput smcup
 tput civis
+clear
 if [ command -v fortune &> /dev/null ]; then
 	PREVIEW=$(fortune)
 else
 	PREVIEW="Lorem ipsum dolor sit amet"
 fi
+LINES=0
 menu
