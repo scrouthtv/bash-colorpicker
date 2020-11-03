@@ -122,20 +122,29 @@ function select_entry {
 	fi
 }
 
+# $1: whether to format mods
+# $2: whether to format fg
+# $3: whether to format bg
 function format_selected {
-	for mod in ${SELECTED_MODS[@]}; do
-		printf "\e[%sm" ${codes[$mod]}
-	done
-
-	if [ $(($SELECTED_FG % 2)) -eq 0 ]; then
-		printf "\e[3%sm" $(($SELECTED_FG  / 2))
-	else
-		printf "\e[9%sm" $((($SELECTED_FG - 1) / 2))
+	if [ $1 -eq $TRUE ]; then
+		for mod in ${SELECTED_MODS[@]}; do
+			printf "\e[%sm" ${codes[$mod]}
+		done
 	fi
-	if [ $(($SELECTED_BG % 2)) -eq 0 ]; then
-		printf "\e[4%sm" $(($SELECTED_BG  / 2))
-	else
-		printf "\e[10%sm" $((($SELECTED_BG - 1) / 2))
+
+	if [ $2 -eq $TRUE ]; then
+		if [ $(($SELECTED_FG % 2)) -eq 0 ]; then
+			printf "\e[3%sm" $(($SELECTED_FG  / 2))
+		else
+			printf "\e[9%sm" $((($SELECTED_FG - 1) / 2))
+		fi
+	fi
+	if [ $3 -eq $TRUE ]; then
+		if [ $(($SELECTED_BG % 2)) -eq 0 ]; then
+			printf "\e[4%sm" $(($SELECTED_BG  / 2))
+		else
+			printf "\e[10%sm" $((($SELECTED_BG - 1) / 2))
+		fi
 	fi
 }
 
@@ -149,10 +158,10 @@ function menu {
 		fi
 		case $mode in
 			q) close ;;
-			'[A') move_cursor $FALSE $TRUE ;;
-			'[B') move_cursor $FALSE $FALSE ;;
-			'[C') move_cursor $TRUE $TRUE ;;
-			'[D') move_cursor $TRUE $FALSE ;;
+			k | '[A') move_cursor $FALSE $TRUE ;;
+			j | '[B') move_cursor $FALSE $FALSE ;;
+			l | '[C') move_cursor $TRUE $TRUE ;;
+			h | '[D') move_cursor $TRUE $FALSE ;;
 			'') select_entry ;;
 			#*) echo "-$mode-";;
 		esac
@@ -170,7 +179,7 @@ function draw_16list {
 		for pfx in ${pfxs[@]}; do
 			printf "\n%-$2s"
 
-			# set foreground color on background:
+			# set the other attributes
 			if [ $1 -eq $FALSE ]; then
 				if [ $i -eq 0 ]; then
 					printf "\e[97m"
@@ -178,6 +187,11 @@ function draw_16list {
 					printf "\e[30m"
 				fi
 			fi
+			#if [ $1 -eq $FALSE ]; then
+			#	format_selected $TRUE $TRUE $FALSE
+			#else
+			#	format_selected $TRUE $FALSE $TRUE
+			#fi
 
 			# draw cursor:
 			if [ $pfx -lt 5 ] && [ $3 -eq $(( $i * 2)) ]; then
@@ -212,7 +226,8 @@ function draw_16list {
 # $2: selected
 codes=( 1 2 4 5 7 8 )
 function draw_modlist {
-	mods=( Bold Dim Underlined Blink Invert Hidden )
+	local mods=( Bold Dim Underlined Blink Invert Hidden )
+	local width=12
 	for ((i = 0; i < 6; i++)); do
 		printf "\n"
 		if [ $2 -eq $i ]; then
@@ -225,6 +240,11 @@ function draw_modlist {
 		fi
 		printf "%2d: ${mods[$i]} \e[%dmText" ${codes[$i]} ${codes[$i]}
 		printf $RESET
+		if [ $2 -eq $i ]; then
+			printf $CURSOR
+		fi
+		printf "%-$(($width - ${#mods[$i]}))s"
+		printf $RESET
 	done
 }
 
@@ -233,20 +253,25 @@ function draw_preview {
 	local margin=$((($WIDTH - ${#PREVIEW} - $padding) / 2))
 
 	printf "\n%-${margin}s"
-	format_selected
+	format_selected $TRUE $TRUE $TRUE
+	printf "\e[24m"
 	printf "%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 
 	printf "\n%-$(($margin))s"
 
-	format_selected
+	format_selected $TRUE $TRUE $TRUE
+	printf "\e[24m%-${padding}s"
 
-	printf "%-${padding}s${PREVIEW[@]}%-${padding}s"
+	format_selected $TRUE $TRUE $TRUE
+	printf "${PREVIEW[@]}"
+
+	printf "\e[24m%-${padding}s"
 	printf "$RESET"
 
 	printf "\n%-${margin}s"
-	format_selected
-	printf "%-$((${#PREVIEW} + 2 * $padding))s"
+	format_selected $TRUE $TRUE $TRUE
+	printf "\e[24m%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 }
 
