@@ -217,22 +217,35 @@ function format_selected {
 }
 
 function menu {
-	escape_char=$(printf "\u1b")
+	mytab=$(echo -e "\t")
+	myenter=$(echo -e "\n")
+	myescape=$(echo -e "\e")
+	IFS=" "
 	while true; do
 		draw
-		read -rsn1 mode
-		if [[ $mode == $escape_char ]]; then
-			read -rsn2 mode
+		read -rsn1 line
+		if [ "$line" = "$mytab" ]; then
+			DIRTY[$CURSOR_X]=$TRUE
+			let CURSOR_X=$CURSOR_X+1
+			CURSOR_X=$(($CURSOR_X % ($(max_cx) + 1)))
+			[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
+		elif [ "$line" = "$myenter" ]; then
+			select_entry
+		elif [ "$line" = "q" ]; then
+			close
+		elif [ "$line" = "h" ]; then move_cursor $TRUE $FALSE
+		elif [ "$line" = "j" ]; then move_cursor $FALSE $FALSE
+		elif [ "$line" = "k" ]; then move_cursor $FALSE $TRUE
+		elif [ "$line" = "l" ]; then move_cursor $TRUE $TRUE
+		elif [ "$line" = "$myescape" ]; then
+			read -rsn2 line
+			case "$line" in
+				'[D') move_cursor $TRUE $FALSE ;;
+				'[B') move_cursor $FALSE $FALSE ;;
+				'[A') move_cursor $FALSE $TRUE ;;
+				'[C') move_cursor $TRUE $TRUE ;;
+			esac
 		fi
-		case $mode in
-			q) close ;;
-			k | '[A') move_cursor $FALSE $TRUE ;;
-			j | '[B') move_cursor $FALSE $FALSE ;;
-			l | '[C') move_cursor $TRUE $TRUE ;;
-			h | '[D') move_cursor $TRUE $FALSE ;;
-			'') select_entry ;;
-			#*) echo "-$mode-";;
-		esac
 	done
 }
 
@@ -299,7 +312,6 @@ function draw_16list {
 	for (( i = 0; i < 8; i++ )); do
 		for pfx in ${pfxs[@]}; do
 			printf "\n\e[$2C"
-			let LINES=$LINES+1
 
 			# invert fg on bright / dark bgs
 			if [ $1 -eq $FALSE ]; then
@@ -353,7 +365,6 @@ function draw_256list {
 
 	for ((i = -2; i <= 250; i = $i + 6)); do
 		printf " \n\e[$2C"
-		let LINES=$LINES+1
 		for ((j = 0; j < 6; j++)); do
 			col=$(($i + $j))
 			if [ $col -lt 0 ]; then
@@ -383,7 +394,6 @@ function draw_modlist {
 	local width=12
 	for ((i = 0; i < 6; i++)); do
 		printf "\n"
-		let LINES=$LINES+1
 		if [ $2 -eq $i ]; then
 			printf $CURSOR
 		fi
@@ -408,14 +418,12 @@ function draw_preview {
 	local margin=$((($WIDTH - ${#PREVIEW} - $padding) / 2))
 
 	printf "\n%-${margin}s"
-	let LINES=$LINES+1
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m"
 	printf "%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 
 	printf "\n%-$(($margin))s"
-	let LINES=$LINES+1
 
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-${padding}s"
@@ -427,7 +435,6 @@ function draw_preview {
 	printf "$RESET"
 
 	printf "\n%-${margin}s"
-	let LINES=$LINES+1
 	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
@@ -498,6 +505,8 @@ function squash-code {
 }
 
 function close {
+	echo "\e[?7h"
+	IFS="$oldifs"
 	tput cvvis
 	tput rmcup
 	printf "You selected"
@@ -536,13 +545,18 @@ function close {
 }
 
 echo "Launched at $(date)" >> /tmp/picker.log
-tput smcup
-tput civis
-clear
+
 if [ command -v fortune &> /dev/null ]; then
 	PREVIEW=$(fortune)
 else
 	PREVIEW="Lorem ipsum dolor sit amet"
 fi
-LINES=0
+
+trap close SIGINT
+
+tput smcup
+tput civis
+echo "\e[?7l"
+oldifs="$IFS"
+clear
 menu
