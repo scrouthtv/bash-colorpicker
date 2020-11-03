@@ -15,8 +15,11 @@ RESET="\e[0m"
 tab_titles=( "16 Color Mode" "256 Color Mode" )
 
 function draw_tabs {
+	local padding=2
+	local margin=$(( $WIDTH - 13 - 14 - $padding ))
+	margin=$(($margin / 2))
+	printf "%-${margin}s"
 	for (( i = 0; i < ${#tab_titles[@]}; i++ )); do
-		echo -n " "
 		if [ $SELECTED_TAB -eq $i ]; then
 			echo -en $SELECTED
 		fi
@@ -24,20 +27,28 @@ function draw_tabs {
 			echo -en $CURSOR
 		fi
 		echo -en ${tab_titles[$i]}$RESET
+		printf "%-${padding}s"
 	done
-}
-
-function close {
-	tput rmcup
-	exit
 }
 
 function max_cx {
 	if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
 		expr ${#tab_titles[@]} - 1
 	else
-		printf 5
+		printf 2
 	fi
+}
+
+function arr_contains {
+	idx=$1
+	shift
+	for v in $@; do
+		if [ $v -eq $idx ]; then
+			printf $TRUE
+			return
+		fi
+	done
+	printf $FALSE
 }
 
 # $1:  horizontal  / vertical
@@ -66,6 +77,31 @@ function move_cursor {
 	fi
 }
 
+function switch_mod {
+	for i in "${!SELECTED_MODS[@]}"; do
+		if [[ ${SELECTED_MODS[$i]} -eq "$1" ]]; then
+			unset 'SELECTED_MODS[$i]'
+			return
+		fi
+	done
+	SELECTED_MODS+=("$1")
+}
+
+SELECTED_MODS=()
+SELECTED_FG=5
+SELECTED_BG=8
+function select_entry {
+	if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
+		close
+	else
+		case $CURSOR_X in
+			0) switch_mod $CURSOR_Y;;
+			1) SELECTED_FG=$CURSOR_Y ;;
+			2) SELECTED_BG=$CURSOR_Y ;;
+		esac
+	fi
+}
+
 function menu {
 	escape_char=$(printf "\u1b")
 	while true; do
@@ -80,7 +116,7 @@ function menu {
 			'[B') move_cursor $FALSE $FALSE ;;
 			'[C') move_cursor $TRUE $TRUE ;;
 			'[D') move_cursor $TRUE $FALSE ;;
-			'') echo enter ;;
+			'') select_entry ;;
 			#*) echo "-$mode-";;
 		esac
 	done
@@ -90,8 +126,8 @@ function menu {
 # $2: left start
 # $3: selected entry (-1 for none)
 function draw_16list {
-	names=( Black Red Green Yellow Blue Magenta Cyan Gray)
-	width=14
+	local names=( Black Red Green Yellow Blue Magenta Cyan Gray)
+	local width=14
 	[ $1 -eq $TRUE ] && pfxs=( 3 9 ) || pfxs=( 4 10 )
 	for (( i = 0; i < 8; i++ )); do
 		for pfx in ${pfxs[@]}; do
@@ -145,11 +181,17 @@ function draw_modlist {
 		if [ $2 -eq $i ]; then
 			printf $CURSOR
 		fi
-		printf " %2d: ${mods[$i]} \e[%dmText" ${codes[$i]} ${codes[$i]}
+		if [ $(arr_contains $i ${SELECTED_MODS[@]}) -eq $TRUE ]; then
+			printf "x"
+		else
+			printf " "
+		fi
+		printf "%2d: ${mods[$i]} \e[%dmText" ${codes[$i]} ${codes[$i]}
 		printf $RESET
 	done
 }
 
+WIDTH=77 # width of the selection screen
 function draw {
 	#if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
 	clear
@@ -166,12 +208,17 @@ function draw {
 	else
 		draw_16list $TRUE 25 -1
 	fi
-	printf "\e[11A"
+	printf "\e[16A"
 	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
 		draw_modlist 1 $CURSOR_Y
 	else
 		draw_modlist 1 -1
 	fi
+}
+
+function close {
+	tput rmcup
+	exit
 }
 
 tput smcup
