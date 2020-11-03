@@ -270,8 +270,8 @@ function draw_16list {
 
 # $1: left start
 # $2: selected
-codes=( 1 2 4 5 7 8 )
-mods=( Bold Dim Underlined Blink Invert Hidden )
+codes=( 1 2 3 4 5 7 8 )
+mods=( Bold Dim Cursive Underlined Blink Invert Hidden )
 function draw_modlist {
 	local width=12
 	for ((i = 0; i < 6; i++)); do
