@@ -102,6 +102,23 @@ function select_entry {
 	fi
 }
 
+function format_selected {
+	for mod in ${SELECTED_MODS[@]}; do
+		printf "\e[%sm" ${codes[$mod]}
+	done
+
+	if [ $(($SELECTED_FG % 2)) -eq 0 ]; then
+		printf "\e[3%sm" $(($SELECTED_FG  / 2))
+	else
+		printf "\e[9%sm" $((($SELECTED_FG - 1) / 2))
+	fi
+	if [ $(($SELECTED_BG % 2)) -eq 0 ]; then
+		printf "\e[4%sm" $(($SELECTED_BG  / 2))
+	else
+		printf "\e[10%sm" $((($SELECTED_BG - 1) / 2))
+	fi
+}
+
 function menu {
 	escape_char=$(printf "\u1b")
 	while true; do
@@ -151,7 +168,7 @@ function draw_16list {
 
 			# draw text:
 			echo -ne "\e[$pfx${i}m"
-			if [ $pfx -eq 3 ]; then
+			if [ $pfx -lt 5 ]; then
 				if [ $i -eq 7 ]; then
 					printf " %3d: %-${width}s" $pfx$i "Light Gray"
 				else
@@ -173,9 +190,9 @@ function draw_16list {
 
 # $1: left start
 # $2: selected
+codes=( 1 2 4 5 7 8 )
 function draw_modlist {
 	mods=( Bold Dim Underlined Blink Invert Hidden )
-	codes=( 1 2 4 5 7 8 )
 	for ((i = 0; i < 6; i++)); do
 		printf "\n"
 		if [ $2 -eq $i ]; then
@@ -189,6 +206,28 @@ function draw_modlist {
 		printf "%2d: ${mods[$i]} \e[%dmText" ${codes[$i]} ${codes[$i]}
 		printf $RESET
 	done
+}
+
+function draw_preview {
+	local padding=2
+	local margin=$((($WIDTH - ${#PREVIEW} - $padding) / 2))
+
+	printf "\n%-${margin}s"
+	format_selected
+	printf "%-$((${#PREVIEW} + 2 * $padding))s"
+	printf "$RESET"
+
+	printf "\n%-$(($margin))s"
+
+	format_selected
+
+	printf "%-${padding}s${PREVIEW[@]}%-${padding}s"
+	printf "$RESET"
+
+	printf "\n%-${margin}s"
+	format_selected
+	printf "%-$((${#PREVIEW} + 2 * $padding))s"
+	printf "$RESET"
 }
 
 WIDTH=77 # width of the selection screen
@@ -214,12 +253,21 @@ function draw {
 	else
 		draw_modlist 1 -1
 	fi
+	printf "\e[12B"
+	draw_preview
 }
 
 function close {
+	tput cvvis
 	tput rmcup
 	exit
 }
 
 tput smcup
+tput civis
+if [ command -v fortune &> /dev/null ]; then
+	PREVIEW=$(fortune)
+else
+	PREVIEW="Lorem ipsum dolor sit amet"
+fi
 menu
