@@ -1,7 +1,7 @@
 #!/bin/bash
 
 let BREAKAT=${BREAKAT:-$((($(tput cols) - 2)/4))}
-let START=16
+let START=${START:-0} # looks gret with start=16 and breakat=6
 
 for ((i = $START; i < 255; i++)); do
 	if [ $(( ($i - $START) % $BREAKAT )) -eq 0 ]; then
