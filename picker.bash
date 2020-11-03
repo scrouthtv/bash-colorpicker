@@ -51,14 +51,34 @@ function arr_contains {
 	printf $FALSE
 }
 
+function min {
+	local min=$1
+	for v in $@; do
+		if [ $v -lt $min ]; then
+			min=$v
+		fi
+	done
+	printf $min
+}
+
+function max_cy {
+	if [ $CURSOR_X -eq 0 ]; then
+		printf 5
+	else
+		printf 15
+	fi
+}
+
 # $1:  horizontal  / vertical
 # $2: left / right - up / down
 function move_cursor {
 	if [ $1 -eq $TRUE ]; then
 		if [ $2 -eq $TRUE ] && [ $CURSOR_X -lt $(max_cx) ]; then
 			let CURSOR_X=$CURSOR_X+1
+			CURSOR_Y=$(min $CURSOR_Y $(max_cy))
 		elif [ $2 -eq "$FALSE" ] && [ $CURSOR_X -gt 0 ]; then
 			let CURSOR_X=$CURSOR_X-1
+			CURSOR_Y=$(min $CURSOR_Y $(max_cy))
 		fi
 	else
 		if [ $2 -eq $TRUE ]; then
@@ -70,7 +90,7 @@ function move_cursor {
 		else
 			if [ $CURSOR_Y -eq 0 ] && [ $CURSOR_IN_HEAD -eq $TRUE ]; then
 				CURSOR_IN_HEAD=$FALSE
-			else
+			elif [ $CURSOR_Y -lt $(max_cy) ]; then
 				let CURSOR_Y=$CURSOR_Y+1
 			fi
 		fi
