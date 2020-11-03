@@ -8,7 +8,7 @@ CURSOR_IN_HEAD=1
 CURSOR_X=0
 CURSOR_Y=0
 
-SELECTED="\e[1m"
+SELECTED="\e[4m"
 CURSOR="\e[7m"
 RESET="\e[0m"
 
@@ -125,26 +125,25 @@ function select_entry {
 # $1: whether to format mods
 # $2: whether to format fg
 # $3: whether to format bg
+# $4: format or print
 function format_selected {
+	if [ $4 -eq $TRUE ]; then
+		pfx="\\"
+	else
+		pfx="\\\\"
+	fi
+
 	if [ $1 -eq $TRUE ]; then
 		for mod in ${SELECTED_MODS[@]}; do
-			printf "\e[%sm" ${codes[$mod]}
+			printf "${pfx}e[%sm" ${codes[$mod]}
 		done
 	fi
 
 	if [ $2 -eq $TRUE ]; then
-		if [ $(($SELECTED_FG % 2)) -eq 0 ]; then
-			printf "\e[3%sm" $(($SELECTED_FG  / 2))
-		else
-			printf "\e[9%sm" $((($SELECTED_FG - 1) / 2))
-		fi
+		printf "${pfx}e[%d%dm" $(fgtoi $TRUE $SELECTED_FG)
 	fi
 	if [ $3 -eq $TRUE ]; then
-		if [ $(($SELECTED_BG % 2)) -eq 0 ]; then
-			printf "\e[4%sm" $(($SELECTED_BG  / 2))
-		else
-			printf "\e[10%sm" $((($SELECTED_BG - 1) / 2))
-		fi
+		printf "${pfx}e[%d%dm" $(fgtoi $FALSE $SELECTED_BG)
 	fi
 }
 
@@ -168,11 +167,64 @@ function menu {
 	done
 }
 
+# $1: pfx
+# $2: i
+function itofg {
+	if [ $1 -lt 5 ]; then
+		printf $(( $i * 2 ))
+	else
+		printf $(( $i * 2 + 1 ))
+	fi
+}
+
+# $1: whether fg or bg
+# $2: fg/bg value
+function fgtoi {
+	if [ $(($2 % 2)) -eq 0 ]; then
+		if [ $1 -eq $TRUE ]; then
+			printf "3 $(($2 / 2))"
+		else
+			printf "4 $(($2 / 2))"
+		fi
+	else
+		if [ $1 -eq $TRUE ]; then
+			printf "9 $((($2 - 1) / 2))"
+		else
+			printf "10 $((($2 - 1) / 2))"
+		fi
+	fi
+}
+
+# $1: pfx
+# $2: i
+function itoname {
+	local names=( Black Red Green Yellow Blue Magenta Cyan Gray)
+	if [ $1 -lt 5 ]; then
+		if [ $2 -eq 7 ]; then
+			#printf " %3d: %-${width}s" $1$2 "Light Gray"
+			printf "Light Gray"
+		else
+			#printf " %3d: %-${width}s" $1$2 "${names[$2]}"
+			printf "${names[$2]}"
+		fi
+	else
+		if [ $2 -eq 7 ]; then
+			#printf " %3d: %-${width}s" $1$2 "White"
+			printf "White"
+		elif [ $2 -eq 0 ]; then
+			#printf " %3d: %-${width}s" $1$2 "Dark Gray"
+			printf "Dark Gray"
+		else
+			#printf " %3d: %-${width}s" $1$2 "Light ${names[$2]}"
+			printf "Light ${names[$2]}"
+		fi
+	fi
+}
+
 # $1: fg / bg
 # $2: left start
 # $3: selected entry (-1 for none)
 function draw_16list {
-	local names=( Black Red Green Yellow Blue Magenta Cyan Gray)
 	local width=14
 	[ $1 -eq $TRUE ] && pfxs=( 3 9 ) || pfxs=( 4 10 )
 	for (( i = 0; i < 8; i++ )); do
@@ -194,29 +246,23 @@ function draw_16list {
 			#fi
 
 			# draw cursor:
-			if [ $pfx -lt 5 ] && [ $3 -eq $(( $i * 2)) ]; then
+			if [ $3 -eq $(itofg $pfx $i) ]; then
 				echo -ne $CURSOR
-			elif [ $pfx -gt 5 ] && [ $3 -eq $(( $i * 2 + 1 )) ]; then
-				echo -ne $CURSOR
+			fi
+
+			if [ $1 -eq $TRUE ]; then
+				if [ $SELECTED_FG -eq $(itofg $pfx $i) ]; then
+					echo -ne "$SELECTED"
+				fi
+			else
+				if [ $SELECTED_BG -eq $(itofg $pfx $i) ]; then
+					echo -ne "$SELECTED"
+				fi
 			fi
 
 			# draw text:
 			echo -ne "\e[$pfx${i}m"
-			if [ $pfx -lt 5 ]; then
-				if [ $i -eq 7 ]; then
-					printf " %3d: %-${width}s" $pfx$i "Light Gray"
-				else
-					printf " %3d: %-${width}s" $pfx$i "${names[i]}"
-				fi
-			else
-				if [ $i -eq 7 ]; then
-					printf " %3d: %-${width}s" $pfx$i "White"
-				elif [ $i -eq 0 ]; then
-					printf " %3d: %-${width}s" $pfx$i "Dark Gray"
-				else
-					printf " %3d: %-${width}s" $pfx$i "Light ${names[i]}"
-				fi
-			fi
+			printf " %3d: %-${width}s" 35 "$(itoname $pfx $i)"
 			echo -ne $RESET
 		done
 	done
@@ -225,8 +271,8 @@ function draw_16list {
 # $1: left start
 # $2: selected
 codes=( 1 2 4 5 7 8 )
+mods=( Bold Dim Underlined Blink Invert Hidden )
 function draw_modlist {
-	local mods=( Bold Dim Underlined Blink Invert Hidden )
 	local width=12
 	for ((i = 0; i < 6; i++)); do
 		printf "\n"
@@ -253,24 +299,24 @@ function draw_preview {
 	local margin=$((($WIDTH - ${#PREVIEW} - $padding) / 2))
 
 	printf "\n%-${margin}s"
-	format_selected $TRUE $TRUE $TRUE
+	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m"
 	printf "%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 
 	printf "\n%-$(($margin))s"
 
-	format_selected $TRUE $TRUE $TRUE
+	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-${padding}s"
 
-	format_selected $TRUE $TRUE $TRUE
+	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "${PREVIEW[@]}"
 
 	printf "\e[24m%-${padding}s"
 	printf "$RESET"
 
 	printf "\n%-${margin}s"
-	format_selected $TRUE $TRUE $TRUE
+	format_selected $TRUE $TRUE $TRUE $TRUE
 	printf "\e[24m%-$((${#PREVIEW} + 2 * $padding))s"
 	printf "$RESET"
 }
@@ -305,6 +351,19 @@ function draw {
 function close {
 	tput cvvis
 	tput rmcup
+	printf "You selected"
+	for i in "${!SELECTED_MODS[@]}"; do
+		if [ $i -gt 0 ]; then
+			printf ", %s" ${mods[$i]}
+		else
+			printf " %s" ${mods[$i]}
+		fi
+	done
+	printf " text in %s" "$(itoname $(fgtoi $TRUE $SELECTED_FG))"
+	printf " on %s\n." "$(itoname $(fgtoi $FALSE $SELECTED_BG))"
+	printf "The escape code for this combination is "
+	format_selected $TRUE $TRUE $TRUE $FALSE
+	printf "\n"
 	exit
 }
 
