@@ -112,7 +112,7 @@ SELECTED_FG=5
 SELECTED_BG=8
 function select_entry {
 	if [ $CURSOR_IN_HEAD -eq $TRUE ]; then
-		close
+		SELECTED_TAB=$CURSOR_X
 	else
 		case $CURSOR_X in
 			0) switch_mod $CURSOR_Y;;
@@ -268,6 +268,23 @@ function draw_16list {
 	done
 }
 
+#1: fg / bg
+#2: left start
+#3: selected entry
+function draw_256list {
+	for ((i = 16; i <= 250; i = $i + 6)); do
+		printf "\n%-$2s"
+		for ((j = 0; j < 6; j++)); do
+			col=$(($i + $j))
+			if [ $1 -eq $TRUE ]; then
+				printf " \e[38;5;%dm%03d\e[0m" $col $col
+			else
+				printf " \e[48;5;%dm%03d\e[0m" $col $col
+			fi
+		done
+	done
+}
+
 # $1: left start
 # $2: selected
 codes=( 1 2 3 4 5 7 8 )
@@ -326,25 +343,34 @@ function draw {
 	#if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq $3 ]; then
 	clear
 	draw_tabs
-	echo # separator
-	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
-		draw_16list $FALSE 51 $CURSOR_Y
-	else
-		draw_16list $FALSE 51 -1
-	fi
-	printf "\e[16A"
-	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
-		draw_16list $TRUE 25 $CURSOR_Y
-	else
-		draw_16list $TRUE 25 -1
-	fi
-	printf "\e[16A"
-	if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
-		draw_modlist 1 $CURSOR_Y
-	else
+	printf "\n" # separator
+	if [ $SELECTED_TAB -eq 0 ]; then
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
+			draw_16list $FALSE 51 $CURSOR_Y
+		else
+			draw_16list $FALSE 51 -1
+		fi
+		printf "\e[16A"
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
+			draw_16list $TRUE 25 $CURSOR_Y
+		else
+			draw_16list $TRUE 25 -1
+		fi
+		printf "\e[16A"
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
+			draw_modlist 1 $CURSOR_Y
+		else
+			draw_modlist 1 -1
+		fi
+		printf "\e[12B"
+	elif [ $SELECTED_TAB -eq 1 ]; then
+		draw_256list $FALSE 51 -1
+		printf "\e[40A"
+		draw_256list $TRUE 25 -1
+		printf "\e[40A"
 		draw_modlist 1 -1
+		printf "\e[36B"
 	fi
-	printf "\e[12B"
 	draw_preview
 }
 
