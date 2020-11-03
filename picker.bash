@@ -224,28 +224,29 @@ function menu {
 	while true; do
 		draw
 		read -rsn1 line
-		if [ "$line" = "$mytab" ]; then
-			DIRTY[$CURSOR_X]=$TRUE
-			let CURSOR_X=$CURSOR_X+1
-			CURSOR_X=$(($CURSOR_X % ($(max_cx) + 1)))
-			[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
-		elif [ "$line" = "$myenter" ]; then
-			select_entry
-		elif [ "$line" = "q" ]; then
-			close
-		elif [ "$line" = "h" ]; then move_cursor $TRUE $FALSE
-		elif [ "$line" = "j" ]; then move_cursor $FALSE $FALSE
-		elif [ "$line" = "k" ]; then move_cursor $FALSE $TRUE
-		elif [ "$line" = "l" ]; then move_cursor $TRUE $TRUE
-		elif [ "$line" = "$myescape" ]; then
-			read -rsn2 line
-			case "$line" in
-				'[D') move_cursor $TRUE $FALSE ;;
-				'[B') move_cursor $FALSE $FALSE ;;
-				'[A') move_cursor $FALSE $TRUE ;;
-				'[C') move_cursor $TRUE $TRUE ;;
-			esac
-		fi
+		[ "$line" = "$myescape" ] && read -rsn2 line
+		case "$line" in
+			"$mytab")
+				DIRTY[$CURSOR_X]=$TRUE
+				let CURSOR_X=$CURSOR_X+1
+				CURSOR_X=$(($CURSOR_X % ($(max_cx) + 1)))
+				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
+				;;
+			"$myenter")
+				select_entry ;;
+			"q")
+				close ;;
+			"h" | "[D") move_cursor $TRUE $FALSE ;;
+			"j" | "[B") move_cursor $FALSE $FALSE ;;
+			"k" | "[A") move_cursor $FALSE $TRUE ;;
+			"l" | "[C") move_cursor $TRUE $TRUE ;;
+			"[Z")
+				DIRTY[$CURSOR_X]=$TRUE
+				let CURSOR_X=$CURSOR_X-1
+				CURSOR_X=$(($CURSOR_X % ($(max_cx) + 1)))
+				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
+				;;
+		esac
 	done
 }
 
