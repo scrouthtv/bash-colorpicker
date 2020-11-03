@@ -323,7 +323,7 @@ function draw_256list {
 	fi
 
 	for ((i = -2; i <= 250; i = $i + 6)); do
-		printf " $RESET\n%-$2s"
+		printf " \n%-$2s"
 		for ((j = 0; j < 6; j++)); do
 			col=$(($i + $j))
 			if [ $col -lt 0 ]; then
@@ -331,9 +331,9 @@ function draw_256list {
 				continue
 			fi
 			if [ $3 -eq $col ]; then
-				printf "$RESET $CURSOR\e[%d;5;%dm%03d" $pfx $col $col
+				printf " $CURSOR\e[%d;5;%dm%03d$RESET" $pfx $col $col
 			else
-				printf "$RESET \e[%d;5;%dm%03d" $pfx $col $col
+				printf " \e[%d;5;%dm%03d$RESET" $pfx $col $col
 			fi
 		done
 	done
