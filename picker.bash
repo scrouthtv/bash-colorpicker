@@ -51,6 +51,16 @@ function arr_contains {
 	printf $FALSE
 }
 
+function max {
+	local max=$1
+	for v in $@; do
+		if [ $v -gt $max ]; then
+			max=$v
+		fi
+	done
+	printf $max
+}
+
 function min {
 	local min=$1
 	for v in $@; do
@@ -65,36 +75,69 @@ function max_cy {
 	if [ $CURSOR_X -eq 0 ]; then
 		printf 5
 	else
-		printf 15
+		if [ $SELECTED_TAB -eq 0 ]; then
+			printf 15
+		else
+			printf 255
+		fi
 	fi
 }
 
 # $1:  horizontal  / vertical
 # $2: left / right - up / down
 function move_cursor {
+	printf "old: %dx%d\n" $CURSOR_X $CURSOR_Y >> /tmp/picker.log
 	if [ $1 -eq $TRUE ]; then
-		if [ $2 -eq $TRUE ] && [ $CURSOR_X -lt $(max_cx) ]; then
-			let CURSOR_X=$CURSOR_X+1
-			CURSOR_Y=$(min $CURSOR_Y $(max_cy))
-		elif [ $2 -eq "$FALSE" ] && [ $CURSOR_X -gt 0 ]; then
-			let CURSOR_X=$CURSOR_X-1
-			CURSOR_Y=$(min $CURSOR_Y $(max_cy))
+		if [ $2 -eq $TRUE ]; then
+			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
+				[ $((($CURSOR_Y - 0) % 6)) -ne 3 ]; then # in the 256-color-list
+				let CURSOR_Y=$CURSOR_Y+1 # move one entry to the right
+			elif [ $CURSOR_X -lt $(max_cx) ]; then
+				let CURSOR_X=$CURSOR_X+1
+				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y-5
+				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
+				CURSOR_Y=$(max $CURSOR_Y 0)
+				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
+				#echo "we're going to the right" >> /tmp/picker.log
+			fi
+		else 
+			if [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] &&
+				[ $((($CURSOR_Y - 5) % 6)) -ne 5 ]; then # in the 256-color-list
+				let CURSOR_Y=$CURSOR_Y-1 # move one entry to the left
+			elif [ $CURSOR_X -gt 0 ]; then
+				let CURSOR_X=$CURSOR_X-1
+				[ $SELECTED_TAB -eq 1 ] && [ $CURSOR_X -gt 0 ] && let CURSOR_Y=$CURSOR_Y+5
+				CURSOR_Y=$(min $CURSOR_Y $(max_cy))
+				CURSOR_Y=$(max $CURSOR_Y 0)
+				[ $CURSOR_IN_HEAD -eq $TRUE ] && select_entry
+				#echo "we're going to the left" >> /tmp/picker.log
+			fi
 		fi
 	else
-		if [ $2 -eq $TRUE ]; then
+		# up and down navigation:
+		if [ $2 -eq $TRUE ]; then # up
 			if [ $CURSOR_Y -eq 0 ]; then
-				CURSOR_IN_HEAD=$TRUE
+				CURSOR_IN_HEAD=$TRUE # move to titlebar
+				CURSOR_X=$SELECTED_TAB
 			else
-				let CURSOR_Y=$CURSOR_Y-1
+				if [ $SELECTED_TAB -eq 0 ] || [ $CURSOR_X -eq 0 ]; then
+					let CURSOR_Y=$CURSOR_Y-1
+				elif [ $CURSOR_Y -gt 6 ]; then
+					let CURSOR_Y=$CURSOR_Y-6
+				fi
 			fi
 		else
 			if [ $CURSOR_Y -eq 0 ] && [ $CURSOR_IN_HEAD -eq $TRUE ]; then
 				CURSOR_IN_HEAD=$FALSE
-			elif [ $CURSOR_Y -lt $(max_cy) ]; then
+				CURSOR_X=0
+			elif [ $SELECTED_TAB -eq 0 ] || [ $CURSOR_X -eq 0 ] && [ $CURSOR_Y -lt $(max_cy) ]; then
 				let CURSOR_Y=$CURSOR_Y+1
+			elif [ $SELECTED_TAB -eq 1 ] && [ $CURSOR_Y -lt $(($(max_cy) - 5)) ]; then
+				let CURSOR_Y=$CURSOR_Y+6
 			fi
 		fi
 	fi
+	printf " %dx%d\n" $CURSOR_X $CURSOR_Y >> /tmp/picker.log
 }
 
 function switch_mod {
@@ -272,14 +315,25 @@ function draw_16list {
 #2: left start
 #3: selected entry
 function draw_256list {
-	for ((i = 16; i <= 250; i = $i + 6)); do
-		printf "\n%-$2s"
+	printf $RESET
+	if [ $1 -eq $TRUE ]; then
+		pfx=38
+	else
+		pfx=48
+	fi
+
+	for ((i = -2; i <= 250; i = $i + 6)); do
+		printf " $RESET\n%-$2s"
 		for ((j = 0; j < 6; j++)); do
 			col=$(($i + $j))
-			if [ $1 -eq $TRUE ]; then
-				printf " \e[38;5;%dm%03d\e[0m" $col $col
+			if [ $col -lt 0 ]; then
+				printf "    "
+				continue
+			fi
+			if [ $3 -eq $col ]; then
+				printf "$RESET $CURSOR\e[%d;5;%dm%03d" $pfx $col $col
 			else
-				printf " \e[48;5;%dm%03d\e[0m" $col $col
+				printf "$RESET \e[%d;5;%dm%03d" $pfx $col $col
 			fi
 		done
 	done
@@ -364,12 +418,24 @@ function draw {
 		fi
 		printf "\e[12B"
 	elif [ $SELECTED_TAB -eq 1 ]; then
-		draw_256list $FALSE 51 -1
-		printf "\e[40A"
-		draw_256list $TRUE 25 -1
-		printf "\e[40A"
-		draw_modlist 1 -1
-		printf "\e[36B"
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 2 ]; then
+			draw_256list $FALSE 51 $CURSOR_Y
+		else
+			draw_256list $FALSE 51 -1
+		fi
+		printf " $RESET\e[43A"
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 1 ]; then
+			draw_256list $TRUE 25 $CURSOR_Y
+		else
+			draw_256list $TRUE 25 -1
+		fi
+		printf " $RESET\e[43A"
+		if [ $CURSOR_IN_HEAD -eq $FALSE ] && [ $CURSOR_X -eq 0 ]; then
+			draw_modlist 1 $CURSOR_Y
+		else
+			draw_modlist 1 -1
+		fi
+		printf "\e[39B"
 	fi
 	draw_preview
 }
