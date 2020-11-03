@@ -262,7 +262,7 @@ function draw_16list {
 
 			# draw text:
 			echo -ne "\e[$pfx${i}m"
-			printf " %3d: %-${width}s" 35 "$(itoname $pfx $i)"
+			printf " %3d: %-${width}s" $pfx$i "$(itoname $pfx $i)"
 			echo -ne $RESET
 		done
 	done
@@ -359,11 +359,17 @@ function close {
 			printf " %s" ${mods[$i]}
 		fi
 	done
-	printf " text in %s" "$(itoname $(fgtoi $TRUE $SELECTED_FG))"
-	printf " on %s\n." "$(itoname $(fgtoi $FALSE $SELECTED_BG))"
-	printf "The escape code for this combination is "
+	pfxi=$(fgtoi $TRUE $SELECTED_FG)
+	printf " text in %s" "$(itoname $pfxi)"
+	printf " (%d%d)" $pfxi
+
+	pfxi=$(fgtoi $FALSE $SELECTED_BG)
+	printf " on %s" "$(itoname $pfxi)"
+	printf " (%d%d).\n" $pfxi
+
+	printf "The escape code for this combination is $SELECTED"
 	format_selected $TRUE $TRUE $TRUE $FALSE
-	printf "\n"
+	printf "$RESET .\n"
 	exit
 }
 
