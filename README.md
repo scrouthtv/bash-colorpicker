@@ -6,7 +6,7 @@ This script currently supports mixing 2byte and 8byte colors as well as some att
 ![Screenshot of the 2byte mode](.github/16mode.png)
 ![Screenshot of the 8byte mode](.github/256mode.png)
 
-# Some features I might add
+# Some features I ~~might~~ want to add
  - [ ] I already have some support to generate the preview text using `fortune`, I did not test that though. I might implement some way to "type" the preview text.
  - [ ] I want to add a generator for full rgb (16b) colors using `\e[38;2;r;g;bm`.
  - [ ] I want to add a preview gif to the readme that showcases all functionality
